@@ -1,0 +1,53 @@
+# QLoRA fine-tuning configuration for PaliGemma-3B on medical VQA
+# Tuned for a single 16GB T4 GPU.
+
+model:
+  base_model_id: "google/paligemma-3b-pt-224"
+  trust_remote_code: false
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"          # NormalFloat4 — better fit for weight distributions than fp4
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true     # quantizes the quantization constants too, saves ~0.4 bits/param
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  task_type: "CAUSAL_LM"
+
+training:
+  output_dir: "./checkpoints/echovlm-qlora"
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16     # effective batch size 16 on a single GPU
+  gradient_checkpointing: true
+  num_train_epochs: 3
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  optim: "paged_adamw_8bit"           # paged optimizer avoids OOM spikes on gradient checkpoints
+  logging_steps: 10
+  save_strategy: "epoch"
+  eval_strategy: "epoch"
+  bf16: true
+  max_seq_length: 512
+  seed: 42
+
+data:
+  train_split: "data/train.jsonl"
+  eval_split: "data/eval.jsonl"
+  image_dir: "data/images"
+  question_field: "question"
+  answer_field: "answer"
+  image_field: "image_path"
